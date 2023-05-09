@@ -1,38 +1,50 @@
 #include <iostream>
-#include <pthread.h>
 #include <unistd.h>
-#include <algorithm>
-#include <chrono>
-#include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <exception>
+#include<string.h>
 #include <fstream>
-#include <string>
-#include <thread>
-#include <vector>
-#include <ctime>
+#include<sys/shm.h>
+
 
 using namespace std;
 //Delete a file
+
 int main()
 {
-    float n = 0.05;
-    //displaymemory(n);
+  int shmid;
+  void *shared_memory;
+  shmid=shmget((key_t)2345, 1024, 0666);
+  shared_memory=shmat(shmid,NULL,0);
+  void *read = new int;
+  memcpy(read,shared_memory,sizeof(int));
+  int *size = new int;
+  size =(int *)read;
+
     int status;
-    char fileName[20];
+    std::string fileName;
     cout << "Enter the Name of File: " << endl;
-    cin >> fileName;
-    status = remove(fileName);
+    getline(std::cin,fileName);
+    std::string str;
+    std::ifstream file(fileName);
+    while (!file.eof())
+    {
+      getline(file,str);
+    }
+    status = remove(fileName.c_str());
     if (status == 0)
+    {
+          long long int file_size = sizeof(str);
+          *size = *size - file_size;
+          memcpy(shared_memory,(void *)size,sizeof(*size));
+        
         cout << "\nFile Deleted Successfully!" << endl;
+
+   }
     else
         cout << "\nErorr Occurred!" << endl;
     cout << endl;
 
-std::cin.get();
 std::cin.get();
 return 0;
 }
