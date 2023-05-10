@@ -14,3 +14,8 @@ g++  Converter.cpp -o converter
 g++  stopwatch.cpp  -o stopwatch
 g++  makedirectory.cpp -o mdir
 g++  DeleteDirectory.cpp -o rdir
+g++  edit.cpp -o my_program -pthread
+
+
+
+

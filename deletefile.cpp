@@ -5,39 +5,45 @@
 #include<string.h>
 #include <fstream>
 #include<sys/shm.h>
-
+#include<sys/ipc.h>
 
 using namespace std;
 //Delete a file
 
 int main()
 {
-  int shmid;
-  void *shared_memory;
-  shmid=shmget((key_t)2345, 1024, 0666);
-  shared_memory=shmat(shmid,NULL,0);
-  void *read = new int;
-  memcpy(read,shared_memory,sizeof(int));
-  int *size = new int;
-  size =(int *)read;
-
+  int file_size = 200; 
+            int shm_id;
+            key_t key = ftok(".", 'R');
+            shm_id = shmget(key,1024, IPC_CREAT | 0666);
+            if (shm_id == -1)
+            {
+                std::cerr << "Failed to create shared memory.\n";
+                return 1;
+            }
+            int *shared_memory = (int *)shmat(shm_id, NULL, 0);
+            if (shared_memory == ( int*)-1)
+            {
+                std::cerr << "Failed to attach shared memory.\n";
+                return 1;
+            }
+            
+   *shared_memory = *shared_memory * 1024;
     int status;
     std::string fileName;
     cout << "Enter the Name of File: " << endl;
     getline(std::cin,fileName);
     std::string str;
-    std::ifstream file(fileName);
-    while (!file.eof())
-    {
-      getline(file,str);
-    }
+    std::ifstream file;
+   
     status = remove(fileName.c_str());
     if (status == 0)
     {
-          long long int file_size = sizeof(str);
-          *size = *size - file_size;
-          memcpy(shared_memory,(void *)size,sizeof(*size));
-        
+            file.open(fileName, ios::binary | ios::ate);
+    int file_size = file.tellg();
+    file.seekg(0);
+          *shared_memory = *shared_memory- file_size;
+          
         cout << "\nFile Deleted Successfully!" << endl;
 
    }

@@ -18,6 +18,9 @@
 #include<semaphore.h>
 #include<sys/shm.h>
 #include <sys/ipc.h>
+#include<sys/syscall.h>
+#define MY_SYSCALL_NUMBER 399
+
 
 using namespace std;
 
@@ -31,9 +34,12 @@ int cores;
 int hard_drive;
 int *process_on_core;
 long long int ram;
+int ram_check;
 pthread_mutex_t mutex_hp;
 pthread_mutex_t mutex_lp;
-int process_size[16] = {60,1,1,1,1,3,7,2,4,2,7,2,2,3,1,1};
+int process_size[17] = {60,1,1,1,1,3,7,2,4,2,7,2,2,3,1,1};
+sem_t my_semaphore;
+
 void* execute(void* comm)
 {
    struct cmd *input = reinterpret_cast<struct cmd*>(comm);
@@ -74,6 +80,8 @@ void* execute(void* comm)
      else
      {
         ram = ram + process_size[input->process];
+        
+        
      }
    }
    }
@@ -83,21 +91,62 @@ void* execute(void* comm)
 }
   else
    {
-     ram = ram - process_size[input->process];
+     
      wait(NULL);
+     
+     if(input->process == 17)
+    {
+     int value;
+     sem_getvalue(&my_semaphore,&value);
+     std::cout << value<<std::endl;
+     sem_post(&my_semaphore);
+     sem_getvalue(&my_semaphore,&value);
+     std::cout << value <<std::endl;
+   }
+
+     ram = ram - process_size[input->process];
    }
   
    
 }
+void switch_to_kernel_mode() {
+
+    system("clear");
+    std::cout << "\n\n-----IN KERNEL MODE------\n\n";
+    sleep(2);
+    pthread_mutex_destroy(&mutex_hp);
+    pthread_mutex_destroy(&mutex_lp);
+    delete process_on_core;
+     process_on_core = NULL;
+    sem_destroy(&my_semaphore);
+    syscall(MY_SYSCALL_NUMBER);
+}
 
 void* func(void* arg)
 {
-    pthread_t tid[16];
+    pthread_t tid[17];
     int n;
+    
     system("/home/marwa/Desktop/os/s.sh");
     queue<int> highPriority;
     queue<int> lowPriority;
+    sem_init(&my_semaphore,0,1);
     int counter = 0;
+           int shm_id;
+           key_t key = ftok(".", 'R');
+              shm_id = shmget(key,1024, 0666|IPC_CREAT);
+
+             if (shm_id == -1) {
+               perror("shmget failed");
+                exit(EXIT_FAILURE);
+                }
+
+          int *shared_memory = (int *)shmat(shm_id, NULL, 0);
+
+              if (shared_memory == (int *)-1) {
+                    perror("shmat failed");
+                  exit(EXIT_FAILURE);
+                } 
         
     while(true)
   {
@@ -119,12 +168,17 @@ void* func(void* arg)
     cout << "Press 14 to open stopwatch" << endl;
     cout << "Press 15 to make directory" << endl;
     cout << "Press 16 to remove directory" << endl;
-    cout << "Press 17 to shutdown" << endl;
+    cout << "Press 17 to edit a file"<<endl;
+    cout << "Press 18 to shutdown" << endl;
     cin >> n;
 
-    if ( n== 17)
+    if ( n== 18)
     {
-     
+     system("clear");
+     std::cout << "\n\n-----------Switching to kernel mode to free ram------"<<std::endl;
+    sleep(2);
+     switch_to_kernel_mode();
+    sleep(5);
     system("pkill -TERM -f gnome-terminal");
 
          break;
@@ -191,25 +245,12 @@ void* func(void* arg)
             switch (n)
             {
                 case 2:
-                    void *shared_memory;
-                 int shmid;
-              shmid = shmget((key_t)2345, 1024, 0666|IPC_CREAT);
-
-             if (shmid == -1) {
-               perror("shmget failed");
-                exit(EXIT_FAILURE);
-                }
-
-           shared_memory = shmat(shmid, NULL, 0);
-
-              if (shared_memory == (void *)-1) {
-                    perror("shmat failed");
-                  exit(EXIT_FAILURE);
-                } 
+                   
+          
 
 /* Initialize hard_drive properly before calling memcpy */
-          memcpy(shared_memory, (void *)&hard_drive, sizeof(hard_drive));
-          shmdt(shared_memory);
+          *shared_memory = hard_drive;
+          
                     input->command = "./makefile";
                     input->process = n;
                     break;
@@ -219,13 +260,14 @@ void* func(void* arg)
                     break;
                 case 4:
                   
-                   memcpy(shared_memory,(void *)&hard_drive,sizeof(hard_drive));
+                  *shared_memory = hard_drive;
+          
                     input->command = "./copyfile";
 		    input->process = n;	
                     break;
                 case 5:
-             
-                  memcpy(shared_memory,(void *)&hard_drive,sizeof(hard_drive));
+                   *shared_memory = hard_drive;
+          
                      input->command = "./deletefile";
 		     input->process = n;
                     break;
@@ -265,21 +307,29 @@ void* func(void* arg)
                    input->command = "./rdir";
 		   input->process = n;
                    break;
+                case 17:
+                   sem_wait(&my_semaphore);
+                   input->command = "./my_program";
+                   input->process = n;
+                   break;
 
             }
 
             // Execute the command
             pthread_create(&tid[counter], NULL, execute, (void*)input);
+            
             counter++;
         }
 
    
   } 
-
+ 
   for(int i=0; i < 11;i++)
   { 
      pthread_join(tid[i],NULL);
   }
+         shmdt(shared_memory);
+  shmctl(shm_id, IPC_RMID, NULL);
     pthread_exit(NULL);
 }
 int main(int argc,char* argv[])
@@ -299,7 +349,7 @@ pthread_mutex_init(&mutex_lp, NULL);
     cores = stoi(argv[3]);
     process_on_core = new int[cores];
     ram = ram * 1024 * 1024;   //converting ram from gb to kb
-    
+    ram_check = ram;
     for (int i=0; i < cores;i++)
     {
        process_on_core[i] = 0;
@@ -314,7 +364,7 @@ cout << "|  |__| |  |  |\\_/|  | | |____   \n";
 cout << " \\______|  |__|   |_| |______|  \n\n";
 cout << "      F     A     S     T        \n\n";
 cout << "    PLEASE WAIT LOADING...      \n";
-    sleep(5);
+    sleep(2);
     system("clear");
     cout << "\n\n\n\n       ";
     cout << "\t\t\t Welcome back\t\t\t" << endl;
