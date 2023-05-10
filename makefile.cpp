@@ -49,35 +49,31 @@ int main()
         std::cin >> choice;
         if (choice == 1)
         {
-            long long int file_size;
-            file_size = sizeof(str);
-            
-            int shmid;
-            void* shared_memory;
-            shmid = shmget((key_t)2345, sizeof(int), IPC_CREAT | 0666);
-            if (shmid == -1)
+            int file_size = 200; 
+            int shm_id;
+            key_t key = ftok(".", 'R');
+            shm_id = shmget(key, 1024, IPC_CREAT | 0666);
+            if (shm_id == -1)
             {
                 std::cerr << "Failed to create shared memory.\n";
                 return 1;
             }
-            shared_memory = shmat(shmid, NULL, 0);
-            if (shared_memory == (void*)-1)
+            int *shared_memory = ( int *)shmat(shm_id, NULL, 0);
+            if (shared_memory == ( int*)-1)
             {
                 std::cerr << "Failed to attach shared memory.\n";
                 return 1;
             }
             
-        void* read;
-memcpy(read, shared_memory, sizeof(int));
-int* size = new int;
-size = (int*)read;
-std::cin.ignore();
-*size = (*size * 1024 * 1024); // converting gb to kb
-if (file_size < *size)
+ *shared_memory = *shared_memory * 1024;// converting gb to kb
+if (file_size < *shared_memory)
 {
-    *size = *size - file_size;
-    memcpy(shared_memory, (void*)size, sizeof(*size));
+    *shared_memory = *shared_memory- file_size;
+     cin.get();
     std::cout << "File created successfully!\n";
+    
+    shmdt(shared_memory);
+    shmctl(shm_id, IPC_RMID, NULL);
 }
 else
 {
@@ -86,15 +82,16 @@ else
     std::cerr << " NOT ENOUGH SPACE \n";
     return 1;
 }
-
-        }
-        else if (choice == 2)
+  shmdt(shared_memory);
+}
+else if (choice == 2)
         {
            
             std::cerr<<"closed without saving!\n";
         }
     }
 
+   
     //wait for the user to press key to terminate program
     std::cin.get();
     return 0;
